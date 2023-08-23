@@ -1,0 +1,693 @@
+#+Author: Vassiliy Kuzenkov
+#+Date: 2023
+* Settings without corresponding packages
+Clean up the UI and enhance some basic defaults defined in "C Source
+Code". The variable ~bat/indent-width~ controls the default
+indentation across various programming modes. The default is 4, you
+can change this variable to 2 or any other indentation width you
+prefer, and the change will be made across all programming language
+modes including C, C++, Java, Python etc. (Exception: JavaScript
+defaults to 2-space indent, you can still set it to any other
+indentation width you prefer in the ~web-mode~ section.)
+#+BEGIN_SRC emacs-lisp
+  (use-package emacs
+    :preface
+    (defvar bat/indent-width 2)
+    :config
+    (setq frame-title-format '("Bat Emacs")
+          ring-bell-function 'ignore       ; minimize distraction
+          frame-resize-pixelwise t
+          default-directory "~/")
+
+    (tool-bar-mode -1)
+    (menu-bar-mode -1)
+
+    ;; better scrolling experience
+    (setq scroll-margin 0
+          scroll-conservatively 101 ; > 100 scroll-preserve-screen-position t
+          scroll-preserve-screen-position t
+          auto-window-vscroll nil)
+
+    ;; Always use spaces for indentation
+    (setq-default indent-tabs-mode nil
+                  tab-width bat/indent-width)
+
+    (setq-default line-spacing 0)
+    (setq-default mac-auto-operator-composition-characters
+                  (nconc (list ?- ?/ ?* ?< ?> ?= ?! ?& ?| ?% ?$ ?\#)
+                         (number-sequence ?0 ?9)
+                         (number-sequence ?a ?z)
+                         (number-sequence ?A ?Z)))
+
+    ;; Omit default startup screen
+    (setq inhibit-startup-screen t))
+
+  ;; The Emacs default split doesn't seem too intuitive for most users.
+  (use-package emacs
+    :ensure nil
+    :preface
+    (defun bat/split-and-follow-horizontally ()
+      "Split window below."
+      (interactive)
+      (split-window-below)
+      (other-window 1))
+    (defun bat/split-and-follow-vertically ()
+      "Split window right."
+      (interactive)
+      (split-window-right)
+      (other-window 1))
+    :config
+    (global-set-key (kbd "C-x 2") #'bat/split-and-follow-horizontally)
+    (global-set-key (kbd "C-x 3") #'bat/split-and-follow-vertically))
+#+END_SRC
+* Configuration for built-in packages
+Since we're using use-package as our package management system, we
+might as well try to organize under the same syntax as much as
+possible to keep the configuration consistent. The option
+~use-package-always-ensure~ is turned on in ~init.el~, so we'll add
+~:ensure nil~ when configuring the built-in packages.
+** Modernize selection behavior
+Replace the active region just by typing text, just like modern
+editors.
+#+BEGIN_SRC emacs-lisp
+  (use-package delsel
+    :ensure nil
+    :config (delete-selection-mode +1))
+#+END_SRC
+** Disable scroll-bar
+#+BEGIN_SRC emacs-lisp
+  (use-package scroll-bar
+    :ensure nil
+    :config (scroll-bar-mode -1))
+#+END_SRC
+** Enable column numbers
+#+BEGIN_SRC emacs-lisp
+  (use-package simple
+    :ensure nil
+    :config (column-number-mode +1))
+#+END_SRC
+** File-related tweaks
+Don't bother confirming killing processes and don't let backup~ files
+scatter around.
+#+BEGIN_SRC emacs-lisp
+  (use-package files
+    :ensure nil
+    :config
+    (setq confirm-kill-processes nil
+          create-lockfiles nil ; don't create .# files (crashes 'npm start')
+          make-backup-files nil))
+#+END_SRC
+** Automatically refreshes the buffer for changes outside of Emacs
+Auto refreshes every 2 seconds. Don't forget to refresh the version
+control status as well.
+#+BEGIN_SRC emacs-lisp
+  (use-package autorevert
+    :ensure nil
+    :config
+    (global-auto-revert-mode +1)
+    (setq auto-revert-interval 2
+          auto-revert-check-vc-info t
+          global-auto-revert-non-file-buffers t
+          auto-revert-verbose nil))
+#+END_SRC
+** Eldoc: documentation in the mini-buffer
+Slightly shorten eldoc display delay.
+#+BEGIN_SRC emacs-lisp
+  (use-package eldoc
+    :ensure nil
+    :diminish eldoc-mode
+    :config
+    (setq eldoc-idle-delay 0.4))
+#+END_SRC
+** Indentation improvement
+For Java and C/C++, change the formatting style from GNU (the default)
+C++, Java, and Python to the preferred value defined in
+~bat/indent-width~ (all languages default to 4, except JavaScript,
+which is 2, as controlled in ~web-mode~). Of course, you can change
+the value depending on the language as well.
+#+BEGIN_SRC emacs-lisp
+  ;; C, C++, and Java
+  (use-package cc-vars
+    :ensure nil
+    :config
+    (setq-default c-basic-offset bat/indent-width)
+    (setq c-default-style '((java-mode . "java")
+                            (awk-mode . "awk")
+                            (other . "k&r"))))
+
+  ;; Python (both v2 and v3)
+  (use-package python
+    :ensure nil
+    :config (setq python-indent-offset bat/indent-width))
+#+END_SRC
+** Mouse wheel (track-pad) scroll speed
+By default, the scrolling is way too fast to be precise and helpful,
+let's tune it down a little bit.
+#+BEGIN_SRC emacs-lisp
+  (use-package mwheel
+    :ensure nil
+    :config (setq mouse-wheel-scroll-amount '(2 ((shift) . 1))
+                  mouse-wheel-progressive-speed nil))
+#+END_SRC
+** Show matching parentheses
+Reduce the highlight delay to instantly.
+#+BEGIN_SRC emacs-lisp
+  (use-package paren
+    :ensure nil
+    :init (setq show-paren-delay 0)
+    :config (show-paren-mode +1))
+#+END_SRC
+** Setting up some frame defaults
+Maximize the frame by default on start-up. Set the font to size 13.
+#+BEGIN_SRC emacs-lisp
+  (use-package frame
+    :preface
+    (defun bat/set-default-font ()
+      (interactive)
+      (when (member "Fira Code" (font-family-list))
+        (set-face-attribute 'default nil :family "Fira Code"))
+      (set-face-attribute 'default nil
+                          :height 130
+                          :weight 'normal))
+    :ensure nil
+    :config
+    (setq initial-frame-alist '((fullscreen . maximized)))
+    (bat/set-default-font))
+#+END_SRC
+** Ediff tweaks
+Enter ediff with side-by-side buffers to better compare the
+differences.
+#+BEGIN_SRC emacs-lisp
+  (use-package ediff
+    :ensure nil
+    :config
+    (setq ediff-window-setup-function #'ediff-setup-windows-plain)
+    (setq ediff-split-window-function #'split-window-horizontally))
+#+END_SRC
+** Auto-pairing quotes and parentheses etc.
+Electric-pair-mode has improved quite a bit in recent Emacs
+versions. No longer need an extra package for this. It also takes care
+of the new-line-and-push-brace feature.
+#+BEGIN_SRC emacs-lisp
+  (use-package elec-pair
+    :ensure nil
+    :hook (prog-mode . electric-pair-mode))
+#+END_SRC
+** Clean up whitespace on save
+#+BEGIN_SRC emacs-lisp
+  (use-package whitespace
+    :ensure nil
+    :hook (before-save . whitespace-cleanup))
+#+END_SRC
+** Dired tweaks
+Delete intermediate buffers when navigating through dired.
+#+BEGIN_SRC emacs-lisp
+  (use-package dired
+    :ensure nil
+    :commands dired-jump
+    :init
+    (setq dired-dwim-target t  ; suggest a target for moving/copying intelligently
+          dired-hide-details-hide-symlink-targets nil
+          ;; don't prompt to revert, just do it
+          dired-auto-revert-buffer #'dired-buffer-stale-p
+          ;; Where to store image caches
+          image-dired-dir (concat default-directory "image-dired/")
+          image-dired-db-file (concat image-dired-dir "db.el")
+          image-dired-gallery-dir (concat image-dired-dir "gallery/")
+          image-dired-temp-image-file (concat image-dired-dir "temp-image")
+          image-dired-temp-rotate-image-file (concat image-dired-dir "temp-rotate-image")
+          ;; Always copy/delete recursively
+          dired-recursive-copies  'always
+          dired-recursive-deletes 'top)
+    :config
+    (setq delete-by-moving-to-trash t)
+    (eval-after-load "dired"
+      #'(lambda ()
+          (put 'dired-find-alternate-file 'disabled nil)
+          (define-key dired-mode-map (kbd "RET") #'dired-find-alternate-file))))
+#+END_SRC
+** Additinal packages for Dired
+#+BEGIN_SRC emacs-lisp
+  (use-package diredfl
+    :hook (dired-mode . diredfl-mode))
+
+  (use-package dirvish
+    :defer t
+    :init (dirvish-override-dired-mode)
+    :hook (dired-mode . dired-omit-mode)
+    :config
+    (setq dirvish-cache-dir (concat user-emacs-directory "dirvish/")
+          dirvish-hide-details nil
+          dirvish-attributes '(git-msg)))
+#+END_SRC
+** Dump custom-set-variables to a garbage file and don't load it
+#+BEGIN_SRC emacs-lisp
+  (use-package cus-edit
+    :ensure nil
+    :config
+    (setq custom-file (concat user-emacs-directory "to-be-dumped.el")))
+#+END_SRC
+* Third-party packages
+Normally, we need to add ~:ensure t~ to tell ~use-package~ to download packages when it's not available. But since we've added ~use-package-always-ensure~ in ~init.el~, we can omit it.
+** GUI enhancements
+*** Dashboard welcome page
+#+BEGIN_SRC emacs-lisp
+  (use-package dashboard
+    :config
+    (dashboard-setup-startup-hook)
+    (setq dashboard-startup-banner 'logo
+          dashboard-banner-logo-title "Emacs Evil"
+          dashboard-center-content t
+          dashboard-items nil
+          dashboard-set-footer nil
+          dashboard-items '((recents  . 5))))
+#+END_SRC
+*** Syntax highlighting
+Lightweight syntax highlighting improvement for numbers and escape
+sequences (e.g. ~\n, \t~).
+#+BEGIN_SRC emacs-lisp
+  (use-package highlight-numbers
+    :hook (prog-mode . highlight-numbers-mode))
+
+  (use-package highlight-escape-sequences
+    :hook (prog-mode . hes-mode))
+#+END_SRC
+** Vi keybindings
+I personally find Vi(m) bindings to be the most efficient way of
+editing text (especially code). I also changed the default ~:q~ and
+~:wq~ to be killing current buffer, instead of killing the frame or
+subsequently killing Emacs.
+#+BEGIN_SRC emacs-lisp
+  (use-package evil
+    :diminish undo-tree-mode
+    :init
+    (setq evil-want-C-u-scroll t
+          evil-want-keybinding nil
+          evil-shift-width bat/indent-width)
+    :hook (after-init . evil-mode)
+    :preface
+    (defun bat/save-and-kill-this-buffer ()
+      (interactive)
+      (save-buffer)
+      (kill-this-buffer))
+    :config
+    (with-eval-after-load 'evil-maps ; avoid conflict with company tooltip selection
+      (define-key evil-insert-state-map (kbd "C-n") nil)
+      (define-key evil-insert-state-map (kbd "C-p") nil))
+    (evil-ex-define-cmd "q" #'kill-this-buffer)
+    (evil-ex-define-cmd "wq" #'bat/save-and-kill-this-buffer))
+#+END_SRC
+Evil-collection covers more parts of Emacs that the original Evil
+doesn't support (e.g. Packages buffer, eshell, calendar etc.)
+#+BEGIN_SRC emacs-lisp
+  (use-package evil-collection
+    :after evil
+    :config
+    (setq evil-collection-company-use-tng nil)
+    (evil-collection-init))
+#+END_SRC
+Emulates tpope's vim commentary package (Use ~gcc~ to comment out a line,
+~gc~ to comment out the target of a motion (for example, ~gcap~ to
+comment out a paragraph), ~gc~ in visual mode to comment out the
+selection etc.)
+#+BEGIN_SRC emacs-lisp
+  (use-package evil-commentary
+    :after evil
+    :diminish
+    :config (evil-commentary-mode +1))
+#+END_SRC
+It's nice to have additional usefull things with evil mode, like easymotion etc. Copied from Doom.
+#+BEGIN_SRC emacs-lisp
+  (use-package evil-easymotion
+    :after evil
+    :config
+    (evil-define-key 'motion global-map "gs" evilem-map))
+
+  (use-package evil-embrace
+    :commands embrace-add-pair embrace-add-pair-regexp
+    :hook (org-mode . embrace-org-mode-hook)
+    :hook ((lisp-mode emacs-lisp-mode clojure-mode racket-mode hy-mode)
+           . +evil-embrace-lisp-mode-hook-h)
+    :hook ((c++-mode rustic-mode csharp-mode java-mode swift-mode typescript-mode)
+           . +evil-embrace-angle-bracket-modes-hook-h)
+    :config
+    (setq evil-embrace-show-help-p nil)
+    (defun +evil-embrace-lisp-mode-hook-h ()
+      ;; Avoid `embrace-add-pair-regexp' because it would overwrite the default
+      ;; `f' rule, which we want for other modes
+      (push (cons ?f (make-embrace-pair-struct
+                      :key ?f
+                      :read-function #'+evil--embrace-elisp-fn
+                      :left-regexp "([^ ]+ "
+                      :right-regexp ")"))
+            embrace--pairs-list))
+    (defun +evil-embrace-angle-bracket-modes-hook-h ()
+      (let ((var (make-local-variable 'evil-embrace-evil-surround-keys)))
+        (set var (delq ?< evil-embrace-evil-surround-keys))
+        (set var (delq ?> evil-embrace-evil-surround-keys)))
+      (embrace-add-pair-regexp ?< "\\_<[a-z0-9-_]+<" ">" #'+evil--embrace-angle-brackets)
+      (embrace-add-pair ?> "<" ">")))
+#+END_SRC
+** Doom-like stuff
+*** Load custom theme
+I prefer Doom Themes
+#+BEGIN_SRC emacs-lisp
+  (use-package doom-themes
+    :ensure t
+    :config
+    ;; Global settings (defaults)
+    (setq doom-themes-enable-bold t    ; if nil, bold is universally disabled
+          doom-themes-enable-italic t) ; if nil, italics is universally disabled
+    (load-theme 'doom-one t)
+
+    ;; Enable flashing mode-line on errors
+    (doom-themes-visual-bell-config)
+    ;; Enable custom neotree theme (all-the-icons must be installed!)
+    (doom-themes-neotree-config)
+    ;; or for treemacs users
+    (setq doom-themes-treemacs-theme "doom-colors") ; use "doom-colors" for less minimal icon theme
+    (doom-themes-treemacs-config)
+    ;; Corrects (and improves) org-mode's native fontification.
+    (doom-themes-org-config))
+#+END_SRC
+*** Icons
+#+BEGIN_SRC emacs-lisp
+(use-package nerd-icons)
+#+END_SRC
+*** Modeline
+#+BEGIN_SRC emacs-lisp
+  (use-package doom-modeline
+    :init (doom-modeline-mode 1))
+#+END_SRC
+*** Key bindings
+#+BEGIN_SRC emacs-lisp
+  (use-package general
+    :config
+    (general-create-definer bat-leader
+      :states '(normal visual insert emacs)
+      :keymaps 'override
+      :prefix "SPC"
+      :non-normal-prefix "C-SPC")
+    (bat-leader
+      "m" '(:ignore t :which-key "local leader")
+      "s" '(:ignore t :which-key "search")
+      "c" '(:ignore t :which-key "code")
+      "o" '(:ignore t :which-key "open")
+      "e" '(:ignore t :which-key "eval")
+      "g" '(:ignore t :which-key "goto")
+      "p" '(:ignore t :which-key "project")
+      "f" '(:ignore t :which-key "file")
+      "t" '(:ignore t :which-key "toggle")
+      "w" '(:ignore t :which-key "windows")
+      "b" '(:ignore t :which-key "buffer")))
+
+  (use-package emacs
+    :general
+    ("C-=" 'text-scale-increase
+     "C--" 'text-scale-decrease
+     "C-0" 'text-scale-adjust
+     "M-n" 'forward-list
+     "M-p" 'backward-list
+     "C-<tab>" 'indent-region)
+    (bat-leader
+      "SPC" 'execute-extended-command
+      "<tab>" 'previous-buffer
+      "." 'find-file
+      "d" 'dired-jump
+      "x" 'Control-X-prefix
+      "Q" 'save-buffers-kill-emacs
+      "qf" 'delete-frame
+      "!" 'shell-command
+      "&" 'async-shell-command
+      "l" 'recenter-top-bottom
+      "r" 'move-to-window-line-top-bottom
+      ;; eval
+      "eb" 'eval-buffer
+      "er" 'eval-region
+      "ef" 'eval-defun
+      ;; open
+      "of" 'make-frame
+      "oe" 'eshell
+      "om" 'man
+      "oc" 'calendar
+      ;; toggle
+      "tt" 'toggle-truncate-lines
+      "tw" 'visual-line-mode
+      "tv" 'visible-mode
+      ;; help
+      "h" 'help-command
+      "hF" 'describe-face
+      "h'" 'describe-char
+      ;; buffers
+      "bd" 'kill-this-buffer
+      "bz" 'bury-buffer
+      "bR" 'rename-buffer
+      "br" 'revert-buffer
+      "bk" 'kill-this-buffer
+      "bm" 'bookmark-set
+      ;; files
+      "fw" 'fixup-whitespace
+      "fP" 'ffap
+      "fs" 'save-buffer
+      "fS" 'write-file
+      "ff" 'find-file
+
+      ;; window
+      "wd" 'evil-window-delete
+      "wn" 'evil-window-new))
+
+  (use-package project
+    :general
+    (bat-leader
+      "p" project-prefix-map))
+
+  (use-package ibuffer
+    :general
+    (bat-leader
+      "bi" 'ibuffer))
+
+  (use-package winner
+    :demand t
+    :config
+    (winner-mode)
+    :general
+    (bat-leader
+      :keymaps 'winner-mode-map
+      "wr" 'winner-redo
+      "wu" 'winner-undo))
+     #+END_SRC
+
+** Git Integration
+Tell magit to automatically put us in vi-insert-mode when committing a change.
+#+BEGIN_SRC emacs-lisp
+  (use-package magit
+    :bind ("C-x g" . magit-status)
+    :config
+    (add-hook 'with-editor-mode-hook #'evil-insert-state)
+    :general
+    (bat-leader
+      "g" 'magit-status))
+#+END_SRC
+** Searching/sorting enhancements & project management
+*** Ido, ido-vertical, ido-ubiquitous and fuzzy matching
+Selecting buffers/files with great efficiency. In my opinion, Ido is
+enough to replace Ivy/Counsel and Helm. We install ido-vertical to get
+a better view of the available options (use ~C-n~, ~C-p~ or arrow keys
+to navigate). Ido-ubiquitous (from the ~ido-completing-read+~ package)
+provides us ido-like completions in describing functions and variables
+etc. Fuzzy matching is a nice feature and we have flx-ido for that
+purpose.
+#+BEGIN_SRC emacs-lisp
+  (use-package ido
+    :config
+    (ido-mode +1)
+    (setq ido-everywhere t
+          ido-enable-flex-matching t))
+
+  (use-package ido-vertical-mode
+    :config
+    (ido-vertical-mode +1)
+    (setq ido-vertical-define-keys 'C-n-C-p-up-and-down))
+
+  (use-package ido-completing-read+ :config (ido-ubiquitous-mode +1))
+
+  (use-package flx-ido :config (flx-ido-mode +1))
+#+END_SRC
+** Programming language support and utilities
+*** Company for auto-completion
+Use ~C-n~ and ~C-p~ to navigate the tooltip.
+#+BEGIN_SRC emacs-lisp
+  (use-package company
+    :diminish company-mode
+    :hook (prog-mode . company-mode)
+    :config
+    (setq company-minimum-prefix-length 1
+          company-idle-delay 0.1
+          company-selection-wrap-around t
+          company-tooltip-align-annotations t
+          company-frontends '(company-pseudo-tooltip-frontend ; show tooltip even for single candidate
+                              company-echo-metadata-frontend))
+    (define-key company-active-map (kbd "C-n") 'company-select-next)
+    (define-key company-active-map (kbd "C-p") 'company-select-previous))
+#+END_SRC
+*** Flycheck
+A modern on-the-fly syntax checking extension -- absolute essential
+#+BEGIN_SRC emacs-lisp
+  (use-package flycheck :config (global-flycheck-mode +1))
+#+END_SRC
+*** Useful major modes
+Markdown mode and Web mode, the latter covers our usages of HTML/CSS/JS/JSX/TS/TSX/JSON.
+#+BEGIN_SRC emacs-lisp
+  (use-package markdown-mode
+    :hook (markdown-mode . visual-line-mode))
+
+  (use-package web-mode
+    :mode (("\\.html?\\'" . web-mode)
+           ("\\.css\\'"   . web-mode)
+           ("\\.jsx?\\'"  . web-mode)
+           ("\\.json\\'"  . web-mode))
+    :config
+    (setq web-mode-markup-indent-offset 2) ; HTML
+    (setq web-mode-css-indent-offset 2)    ; CSS
+    (setq web-mode-code-indent-offset 2)   ; JS/JSX/TS/TSX
+    (setq web-mode-content-types-alist '(("jsx" . "\\.js[x]?\\'"))))
+#+END_SRC
+** Org Mode
+I'm using org mode mosty for presentations and notes. So let's use proper packages
+*** Minimal
+Some minimal org mode tweaks: org-bullets gives our headings (h1, h2,
+h3...) a more visually pleasing look.
+#+BEGIN_SRC emacs-lisp
+  (use-package org
+    :hook ((org-mode . visual-line-mode)
+           (org-mode . org-indent-mode)))
+
+  (use-package org-bullets :hook (org-mode . org-bullets-mode))
+#+END_SRC
+*** Evil
+#+BEGIN_SRC emacs-lisp
+  (use-package evil-org
+    :after org
+    :hook (org-mode . (lambda () evil-org-mode))
+    :config
+    (require 'evil-org-agenda)
+    (evil-org-agenda-set-keys))
+#+END_SRC
+*** Presentation
+#+BEGIN_SRC emacs-lisp
+  (use-package org-tree-slide
+    :commands org-tree-slide-mode
+    :config
+    (org-tree-slide-simple-profile)
+    (setq org-tree-slide-activate-message " "
+          org-tree-slide-deactivate-message " "
+          org-tree-slide-modeline-display nil
+          org-tree-slide-heading-emphasis t)
+
+    (add-hook 'org-tree-slide-after-narrow-hook #'org-display-inline-images)
+    (add-hook 'org-tree-slide-mode-hook #'+org-present-prettify-slide-h)
+    (add-hook 'org-tree-slide-play-hook #'+org-present-hide-blocks-h)
+    (add-hook 'org-tree-slide-stop-hook #'+org-present-hide-blocks-h))
+#+END_SRC
+** Miscellaneous
+*** Diminish minor modes
+The diminish package is used to hide unimportant minor modes in the
+modeline. It provides the ~:diminish~ keyword we've been using in
+other use-package declarations.
+#+BEGIN_SRC emacs-lisp
+  (use-package diminish
+    :demand t)
+#+END_SRC
+*** Which-key
+Provides us with hints on available keystroke combinations.
+#+BEGIN_SRC emacs-lisp
+  (use-package which-key
+    :diminish which-key-mode
+    :config
+    (which-key-mode +1)
+    (setq which-key-idle-delay 0.4
+          which-key-idle-secondary-delay 0.4))
+#+END_SRC
+*** Configure PATH on macOS
+#+BEGIN_SRC emacs-lisp
+  (use-package exec-path-from-shell
+    :config (when (memq window-system '(mac ns x))
+              (exec-path-from-shell-initialize)))
+#+END_SRC
+*** Reasonable defaults for macOS
+Use spotlight search backend as a default for M-x locate (and helm/ivy variants thereof), since it requires no additional setup.
+#+BEGIN_SRC emacs-lisp
+  (setq locate-command "mdfind")
+#+END_SRC
+Sane trackpad/mouse scroll settings
+#+BEGIN_SRC emacs-lisp
+  (setq mac-redisplay-dont-reset-vscroll t
+      mac-mouse-wheel-smooth-scroll nil)
+#+END_SRC
+Usefull packages for mac!
+#+BEGIN_SRC emacs-lisp
+(use-package osx-trash
+  :commands osx-trash-move-file-to-trash
+  :init
+  ;; Delete files to trash on macOS, as an extra layer of precaution against
+  ;; accidentally deleting wanted files.
+  (setq delete-by-moving-to-trash t)
+
+  ;; Lazy load `osx-trash'
+  (when (not (fboundp 'system-move-file-to-trash))
+    (defun system-move-file-to-trash (file)
+      "Move FILE to trash."
+      (when (and (not IS-LINUX)
+                 (not (file-remote-p default-directory)))
+        (osx-trash-move-file-to-trash file)))))
+#+END_SRC
+
+*** Undo
+Make Emacs’ built-in undo system to be more intuitive and to persist across Emacs sessions.
+#+BEGIN_SRC emacs-lisp
+  (use-package undo-fu
+    :config
+    ;; Increase undo history limits to reduce likelihood of data loss
+    (setq undo-limit 400000           ; 400kb (default is 160kb)
+          undo-strong-limit 3000000   ; 3mb   (default is 240kb)
+          undo-outer-limit 48000000)  ; 48mb  (default is 24mb)
+    )
+  (use-package evil
+    :init
+    (setq evil-undo-system 'undo-fu))
+  (use-package undo-fu-session
+    :config
+    (setq undo-fu-session-incompatible-files '("/COMMIT_EDITMSG\\'" "/git-rebase-todo\\'")))
+
+  (undo-fu-session-global-mode)
+#+END_SRC
+
+*** Multiple cursors
+#+BEGIN_SRC emacs-lisp
+  (use-package evil-multiedit
+    :config
+    (evil-multiedit-default-keybinds))
+  (use-package evil-mc
+    :ensure t
+    :config
+    (global-evil-mc-mode 1))
+
+  ;; TODO: Make the same experiance as with VSCode M+d
+#+END_SRC
+
+*** Drag stuff
+#+BEGIN_SRC emacs-lisp
+  (use-package drag-stuff
+    :config
+    (drag-stuff-global-mode 1)
+    (drag-stuff-define-keys))
+#+END_SRC
+*** Copilot
+#+BEGIN_SRC emacs-lisp
+  (use-package copilot
+    :straight (:host github :repo "zerolfx/copilot.el" :files ("dist" "*.el"))
+    :config
+    (add-hook 'prog-mode-hook 'copilot-mode)
+    (define-key copilot-completion-map (kbd "<tab>") 'copilot-accept-completion)
+    (define-key copilot-completion-map (kbd "TAB") 'copilot-accept-completion))
+#+END_SRC

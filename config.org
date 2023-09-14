@@ -283,7 +283,10 @@ subsequently killing Emacs.
     :init
     (setq evil-want-C-u-scroll t
           evil-want-keybinding nil
-          evil-shift-width bat/indent-width)
+          evil-shift-width bat/indent-width
+          evil-want-integration t
+          evil-use-undo-system 'undo-fu)
+
     :hook (after-init . evil-mode)
     :preface
     (defun bat/save-and-kill-this-buffer ()
@@ -320,7 +323,7 @@ It's nice to have additional usefull things with evil mode, like easymotion etc.
 #+BEGIN_SRC emacs-lisp
   (use-package evil-easymotion
     :after evil
-    :config
+    :confievil-drag-stuffevil-drag-stuffg
     (evil-define-key 'motion global-map "gs" evilem-map))
 
   (use-package evil-embrace
@@ -434,6 +437,7 @@ I prefer Doom Themes
       "tt" 'toggle-truncate-lines
       "tw" 'visual-line-mode
       "tv" 'visible-mode
+      "tc" 'copilot-mode
       ;; help
       "h" 'help-command
       "hF" 'describe-face
@@ -454,7 +458,9 @@ I prefer Doom Themes
 
       ;; window
       "wd" 'evil-window-delete
-      "wn" 'evil-window-new))
+      "wn" 'evil-window-new
+      "wv" 'evil-window-vsplit
+      "ws" 'evil-window-split))
 
   (use-package project
     :general
@@ -486,7 +492,9 @@ Tell magit to automatically put us in vi-insert-mode when committing a change.
     (add-hook 'with-editor-mode-hook #'evil-insert-state)
     :general
     (bat-leader
-      "g" 'magit-status))
+      "g" 'magit-status)
+    (define-key magit-mode-map "q" #'+magit/quit)
+    (define-key magit-mode-map "Q" #'+magit/quit-all))
 #+END_SRC
 ** Searching/sorting enhancements & project management
 *** Ido, ido-vertical, ido-ubiquitous and fuzzy matching
@@ -551,6 +559,50 @@ Markdown mode and Web mode, the latter covers our usages of HTML/CSS/JS/JSX/TS/T
     (setq web-mode-css-indent-offset 2)    ; CSS
     (setq web-mode-code-indent-offset 2)   ; JS/JSX/TS/TSX
     (setq web-mode-content-types-alist '(("jsx" . "\\.js[x]?\\'"))))
+#+END_SRC
+*** JavaScript
+#+BEGIN_SRC emacs-lisp
+  (use-package typescript-mode
+    :after tree-sitter
+    :config
+    ;; we choose this instead of tsx-mode so that eglot can automatically figure out language for server
+    ;; see https://github.com/joaotavora/eglot/issues/624 and https://github.com/joaotavora/eglot#handling-quirky-servers
+    (define-derived-mode typescriptreact-mode typescript-mode
+      "TypeScript TSX")
+
+    ;; use our derived mode for tsx files
+    (add-to-list 'auto-mode-alist '("\\.tsx?\\'" . typescriptreact-mode))
+    ;; by default, typescript-mode is mapped to the treesitter typescript parser
+    ;; use our derived mode to map both .tsx AND .ts -> typescriptreact-mode -> treesitter tsx
+    (add-to-list 'tree-sitter-major-mode-language-alist '(typescriptreact-mode . tsx)))
+
+  (use-package apheleia
+    :ensure t
+    :config
+    (apheleia-global-mode +1))
+#+END_SRC
+*** Clojure
+#+BEGIN_SRC emacs-lisp
+  (use-package clojure-mode
+    :config
+    (setq clojure-indent-style 'align-arguments
+          clojure-align-forms-automatically t
+          clojure-thread-all-but-last t
+          clojure-align-binding-forms 'always)
+    (bat-leader
+      :keymaps 'clojure-mode-map
+      "me" '(:ignore t :which-key "eval")
+      "mef" 'cider-eval-last-sexp
+      "mer" 'cider-eval-region
+      "mm" '(:ignore t :which-key "macroexpand")
+      "mmf" 'cider-macroexpand-1
+      "mmb" 'cider-macroexpand-all
+      "m'" 'cider-jack-in
+      "mc" 'cider-connect
+      "mr" '(:ignore t :wich-key "repl")
+      "mrr" 'cider-switch-to-repl-buffer))
+
+  (use-package cider)
 #+END_SRC
 ** Org Mode
 I'm using org mode mosty for presentations and notes. So let's use proper packages
@@ -651,15 +703,13 @@ Make Emacs’ built-in undo system to be more intuitive and to persist across Em
     (setq undo-limit 400000           ; 400kb (default is 160kb)
           undo-strong-limit 3000000   ; 3mb   (default is 240kb)
           undo-outer-limit 48000000)  ; 48mb  (default is 24mb)
-    )
-  (use-package evil
-    :init
-    (setq evil-undo-system 'undo-fu))
+    (global-unset-key (kbd "C-z"))
+    (global-set-key (kbd "C-z")   'undo-fu-only-undo)
+    (global-set-key (kbd "C-S-z") 'undo-fu-only-redo))
   (use-package undo-fu-session
     :config
-    (setq undo-fu-session-incompatible-files '("/COMMIT_EDITMSG\\'" "/git-rebase-todo\\'")))
-
-  (undo-fu-session-global-mode)
+    (setq undo-fu-session-incompatible-files '("/COMMIT_EDITMSG\\'" "/git-rebase-todo\\'"))
+    (global-undo-fu-session-mode))
 #+END_SRC
 
 *** Multiple cursors
@@ -671,7 +721,6 @@ Make Emacs’ built-in undo system to be more intuitive and to persist across Em
     :ensure t
     :config
     (global-evil-mc-mode 1))
-
   ;; TODO: Make the same experiance as with VSCode M+d
 #+END_SRC
 
@@ -690,4 +739,13 @@ Make Emacs’ built-in undo system to be more intuitive and to persist across Em
     (add-hook 'prog-mode-hook 'copilot-mode)
     (define-key copilot-completion-map (kbd "<tab>") 'copilot-accept-completion)
     (define-key copilot-completion-map (kbd "TAB") 'copilot-accept-completion))
+#+END_SRC
+
+*** Auto package update
+#+BEGIN_SRC emacs-lisp
+  (use-package auto-package-update
+    :config
+    (setq auto-package-update-delete-old-versions t
+          auto-package-update-interval 4)
+    (auto-package-update-maybe))
 #+END_SRC

@@ -210,12 +210,6 @@ Delete intermediate buffers when navigating through dired.
           dired-hide-details-hide-symlink-targets nil
           ;; don't prompt to revert, just do it
           dired-auto-revert-buffer #'dired-buffer-stale-p
-          ;; Where to store image caches
-          image-dired-dir (concat default-directory "image-dired/")
-          image-dired-db-file (concat image-dired-dir "db.el")
-          image-dired-gallery-dir (concat image-dired-dir "gallery/")
-          image-dired-temp-image-file (concat image-dired-dir "temp-image")
-          image-dired-temp-rotate-image-file (concat image-dired-dir "temp-rotate-image")
           ;; Always copy/delete recursively
           dired-recursive-copies  'always
           dired-recursive-deletes 'top)
@@ -285,7 +279,7 @@ subsequently killing Emacs.
           evil-want-keybinding nil
           evil-shift-width bat/indent-width
           evil-want-integration t
-          evil-use-undo-system 'undo-fu)
+          evil-undo-system 'undo-fu)
 
     :hook (after-init . evil-mode)
     :preface
@@ -306,7 +300,6 @@ doesn't support (e.g. Packages buffer, eshell, calendar etc.)
   (use-package evil-collection
     :after evil
     :config
-    (setq evil-collection-company-use-tng nil)
     (evil-collection-init))
 #+END_SRC
 Emulates tpope's vim commentary package (Use ~gcc~ to comment out a line,
@@ -319,11 +312,11 @@ selection etc.)
     :diminish
     :config (evil-commentary-mode +1))
 #+END_SRC
-It's nice to have additional usefull things with evil mode, like easymotion etc. Copied from Doom.
+It's nice to have additional usefull things with evil mode, like easymotion etc. Copied /rom Doom.
 #+BEGIN_SRC emacs-lisp
   (use-package evil-easymotion
     :after evil
-    :confievil-drag-stuffevil-drag-stuffg
+    :config
     (evil-define-key 'motion global-map "gs" evilem-map))
 
   (use-package evil-embrace
@@ -367,8 +360,6 @@ I prefer Doom Themes
     (doom-themes-visual-bell-config)
     ;; Enable custom neotree theme (all-the-icons must be installed!)
     (doom-themes-neotree-config)
-    ;; or for treemacs users
-    (setq doom-themes-treemacs-theme "doom-colors") ; use "doom-colors" for less minimal icon theme
     (doom-themes-treemacs-config)
     ;; Corrects (and improves) org-mode's native fontification.
     (doom-themes-org-config))
@@ -384,6 +375,11 @@ I prefer Doom Themes
 #+END_SRC
 *** Key bindings
 #+BEGIN_SRC emacs-lisp
+  (defun bat/flip-window ()
+    "Flips to the last-visited buffer in this window."
+    (interactive)
+    (switch-to-buffer (other-buffer (current-buffer))))
+
   (use-package general
     :config
     (general-create-definer bat-leader
@@ -414,10 +410,10 @@ I prefer Doom Themes
      "C-<tab>" 'indent-region)
     (bat-leader
       "SPC" 'execute-extended-command
-      "<tab>" 'previous-buffer
+      "<tab>" 'bat/flip-window
       "." 'find-file
       "d" 'dired-jump
-      "x" 'Control-X-prefix
+      "x" 'control-x-map
       "Q" 'save-buffers-kill-emacs
       "qf" 'delete-frame
       "!" 'shell-command
@@ -460,7 +456,11 @@ I prefer Doom Themes
       "wd" 'evil-window-delete
       "wn" 'evil-window-new
       "wv" 'evil-window-vsplit
-      "ws" 'evil-window-split))
+      "ws" 'evil-window-split
+      "wl" 'evil-window-right
+      "wh" 'evil-window-left
+      "wj" 'evil-window-down
+      "wk" 'evil-window-up))
 
   (use-package project
     :general
@@ -481,7 +481,7 @@ I prefer Doom Themes
       :keymaps 'winner-mode-map
       "wr" 'winner-redo
       "wu" 'winner-undo))
-     #+END_SRC
+#+END_SRC
 
 ** Git Integration
 Tell magit to automatically put us in vi-insert-mode when committing a change.
@@ -492,9 +492,7 @@ Tell magit to automatically put us in vi-insert-mode when committing a change.
     (add-hook 'with-editor-mode-hook #'evil-insert-state)
     :general
     (bat-leader
-      "g" 'magit-status)
-    (define-key magit-mode-map "q" #'+magit/quit)
-    (define-key magit-mode-map "Q" #'+magit/quit-all))
+      "g" 'magit-status))
 #+END_SRC
 ** Searching/sorting enhancements & project management
 *** Ido, ido-vertical, ido-ubiquitous and fuzzy matching
@@ -520,6 +518,29 @@ purpose.
   (use-package ido-completing-read+ :config (ido-ubiquitous-mode +1))
 
   (use-package flx-ido :config (flx-ido-mode +1))
+  (use-package ido-sort-mtime)
+
+  (defun recentf-ido-find-file ()
+    "Find a recent file using Ido."
+    (interactive)
+    (let* ((file-assoc-list
+            (mapcar (lambda (x)
+                      (cons (file-name-nondirectory x)
+                            x))
+                    recentf-list))
+           (filename-list
+            (remove-duplicates (mapcar #'car file-assoc-list)
+                               :test #'string=))
+           (filename (ido-completing-read "Choose recent file: "
+                                          filename-list
+                                          nil
+                                          t)))
+      (when filename
+        (find-file (cdr (assoc filename
+                               file-assoc-list))))))
+
+  (bat-leader
+    "fr" 'recentf-ido-find-file)
 #+END_SRC
 ** Programming language support and utilities
 *** Company for auto-completion
@@ -580,6 +601,10 @@ Markdown mode and Web mode, the latter covers our usages of HTML/CSS/JS/JSX/TS/T
     :ensure t
     :config
     (apheleia-global-mode +1))
+
+  (use-package js2-mode)
+  (use-package reason-mode)
+  (use-package ocp-indent)
 #+END_SRC
 *** Clojure
 #+BEGIN_SRC emacs-lisp
@@ -588,6 +613,7 @@ Markdown mode and Web mode, the latter covers our usages of HTML/CSS/JS/JSX/TS/T
     (setq clojure-indent-style 'align-arguments
           clojure-align-forms-automatically t
           clojure-thread-all-but-last t
+          clojure-toplevel-inside-comment-form t
           clojure-align-binding-forms 'always)
     (bat-leader
       :keymaps 'clojure-mode-map
@@ -599,10 +625,73 @@ Markdown mode and Web mode, the latter covers our usages of HTML/CSS/JS/JSX/TS/T
       "mmb" 'cider-macroexpand-all
       "m'" 'cider-jack-in
       "mc" 'cider-connect
-      "mr" '(:ignore t :wich-key "repl")
-      "mrr" 'cider-switch-to-repl-buffer))
+      "mr" '(:ignore t :which-key "repl")
+      "mrr" 'cider-switch-to-repl-buffer
+      "=" '(:ignore t :which-key "format")
+      "==" 'cider-format-buffer))
 
-  (use-package cider)
+    (use-package cider
+      :after clojure-mode
+      :config
+      (setq cider-show-error-buffer t               ; show stacktrace buffer
+            cider-print-fn 'puget                   ; pretty printing with sorted keys / set values
+            cider-result-overlay-position 'at-point ; results shown right after expression
+            cider-overlays-use-font-lock t
+
+            ;; limit the number of items shown in the REPL buffer - reduce lags and crashes
+            cider-print-options '(("length" 10) ("right-margin" 70))
+            cider-print-quota 100
+
+            ;; LSP features over Cider features
+            cider-font-lock-dynamically nil         ; use lsp semantic tokens
+
+            ;; minimise the repl buffer activity
+            cider-repl-buffer-size-limit 100        ; limit lines shown in REPL buffer
+            cider-repl-display-help-banner nil      ; disable help banner
+            cider-repl-history-size 10              ; limit command history
+            cider-repl-history-file nil             ; write repl buffer commands to file DOOMDIR/.local/cider-repl-history
+            cider-repl-history-highlight-current-entry nil   ; cider default
+            cider-repl-history-highlight-inserted-item nil   ; cider default
+            cider-repl-history-quit-action 'quit-window ; restores previous emacs window config (cider default )
+            cider-repl-pop-to-buffer-on-connect nil ; REPL buffer shown at starup (nil does not show buffer)
+            cider-repl-use-clojure-font-lock nil
+            cider-repl-use-pretty-printing nil))
+
+    (use-package kaocha-runner
+      :after cider
+      :config
+      ;; enable Kaocha test runner
+      (setq clojure-enable-kaocha-runner t))
+#+END_SRC
+
+Portal Integration
+
+#+BEGIN_SRC emacs-lisp
+;; def portal to the dev namespace to allow dereferencing via @dev/portal
+(defun portal.api/open ()
+  (interactive)
+  (cider-nrepl-sync-request:eval
+    "(do (ns dev) (def portal ((requiring-resolve 'portal.api/open))) (add-tap (requiring-resolve 'portal.api/submit)))"))
+
+(defun portal.api/clear ()
+  (interactive)
+  (cider-nrepl-sync-request:eval "(portal.api/clear)"))
+
+(defun portal.api/close ()
+  (interactive)
+  (cider-nrepl-sync-request:eval "(portal.api/close)"))
+#+END_SRC
+*** Rust
+#+BEGIN_SRC emacs-lisp
+  (use-package rust-mode)
+  (use-package racer)
+  (use-package cargo
+    :hook
+    ((rust-mode . lsp)
+     (rust-mode-hook . cargo-minor-mode)))
+  (use-package flycheck-rust)
+  (with-eval-after-load 'rust-mode
+    (add-hook 'flycheck-mode-hook #'flycheck-rust-setup))
 #+END_SRC
 ** Org Mode
 I'm using org mode mosty for presentations and notes. So let's use proper packages
@@ -694,6 +783,31 @@ Usefull packages for mac!
         (osx-trash-move-file-to-trash file)))))
 #+END_SRC
 
+*** Smartparens
+Number of facilites for manipulate parenthical expressions.
+#+BEGIN_SRC emacs-lisp
+  (use-package smartparens
+    :config
+    (require 'smartparens-config)
+    (add-hook 'lisp-mode-hook #'smartparens-strict-mode)
+    (bat-leader
+      "k" '(:ignore t :which-key "Smartparens")
+      "ks" 'sp-forward-slurp-sexp
+      "kS" 'sp-backward-slurp-sexp
+      "ky" 'sp-copy-sexp
+      "kj" 'sp-join-sexp
+      "kl" 'sp-forward-sexp
+      "kt" 'sp-transpose-sexp
+      "kb" 'sp-forward-barf-sexp
+      "kB" 'sp-backward-barf-sexp
+      "ka" 'sp-absorb-sexp
+      "kp" 'sp-push-hybrid-sexp
+      "kw" '(:ignore t :which-key "wrap")
+      "kww" 'sp-wrap-round
+      "kwc" 'sp-wrap-curly
+      "kws" 'sp-wrap-square
+      "kwu" 'sp-unwrap-sexp))
+#+END_SRC
 *** Undo
 Make Emacs’ built-in undo system to be more intuitive and to persist across Emacs sessions.
 #+BEGIN_SRC emacs-lisp
@@ -723,7 +837,6 @@ Make Emacs’ built-in undo system to be more intuitive and to persist across Em
     (global-evil-mc-mode 1))
   ;; TODO: Make the same experiance as with VSCode M+d
 #+END_SRC
-
 *** Drag stuff
 #+BEGIN_SRC emacs-lisp
   (use-package drag-stuff

@@ -164,8 +164,8 @@ Maximize the frame by default on start-up. Set the font to size 13.
     :preface
     (defun bat/set-default-font ()
       (interactive)
-      (when (member "Fira Code" (font-family-list))
-        (set-face-attribute 'default nil :family "Fira Code"))
+      (when (member "Hack" (font-family-list))
+        (set-face-attribute 'default nil :family "Hack"))
       (set-face-attribute 'default nil
                           :height 130
                           :weight 'normal))
@@ -290,7 +290,8 @@ subsequently killing Emacs.
     :config
     (with-eval-after-load 'evil-maps ; avoid conflict with company tooltip selection
       (define-key evil-insert-state-map (kbd "C-n") nil)
-      (define-key evil-insert-state-map (kbd "C-p") nil))
+      (define-key evil-insert-state-map (kbd "C-p") nil)
+      (define-key evil-normal-state-map (kbd "TAB") 'evil-jump-item))
     (evil-ex-define-cmd "q" #'kill-this-buffer)
     (evil-ex-define-cmd "wq" #'bat/save-and-kill-this-buffer))
 #+END_SRC
@@ -366,12 +367,17 @@ I prefer Doom Themes
 #+END_SRC
 *** Icons
 #+BEGIN_SRC emacs-lisp
-(use-package nerd-icons)
+  (use-package nerd-icons)
 #+END_SRC
 *** Modeline
 #+BEGIN_SRC emacs-lisp
   (use-package doom-modeline
-    :init (doom-modeline-mode 1))
+    :init (doom-modeline-mode 1)
+    :config
+    (setq doom-modeline-height 30
+          doom-modeline-bar-width 5
+          doom-modeline-persp-name t
+          doom-modeline-persp-icon t))
 #+END_SRC
 *** Key bindings
 #+BEGIN_SRC emacs-lisp
@@ -382,12 +388,19 @@ I prefer Doom Themes
 
   (use-package general
     :config
-    (general-create-definer bat-leader
+    (general-create-definer bat/leader
       :states '(normal visual insert emacs)
       :keymaps 'override
       :prefix "SPC"
       :non-normal-prefix "C-SPC")
-    (bat-leader
+
+    (general-create-definer bat/local-leader
+      :states '(normal visual insert emacs)
+      :keymaps 'override
+      :prefix ","
+      :non-normal-prefix "C-,")
+
+    (bat/leader
       "m" '(:ignore t :which-key "local leader")
       "s" '(:ignore t :which-key "search")
       "c" '(:ignore t :which-key "code")
@@ -408,7 +421,7 @@ I prefer Doom Themes
      "M-n" 'forward-list
      "M-p" 'backward-list
      "C-<tab>" 'indent-region)
-    (bat-leader
+    (bat/leader
       "SPC" 'execute-extended-command
       "<tab>" 'bat/flip-window
       "." 'find-file
@@ -424,6 +437,10 @@ I prefer Doom Themes
       "eb" 'eval-buffer
       "er" 'eval-region
       "ef" 'eval-defun
+      "eh" '(counsel-esh-history :which-key "Eshell history")
+      "es" '(eshell :which-key "Eshell")
+      "ew" '(eww :which-key "EWW emacs web wowser")
+      "eR" '(eww-reload :which-key "Reload current page in EWW")
       ;; open
       "of" 'make-frame
       "oe" 'eshell
@@ -462,14 +479,9 @@ I prefer Doom Themes
       "wj" 'evil-window-down
       "wk" 'evil-window-up))
 
-  (use-package project
-    :general
-    (bat-leader
-      "p" project-prefix-map))
-
   (use-package ibuffer
     :general
-    (bat-leader
+    (bat/leader
       "bi" 'ibuffer))
 
   (use-package winner
@@ -477,7 +489,7 @@ I prefer Doom Themes
     :config
     (winner-mode)
     :general
-    (bat-leader
+    (bat/leader
       :keymaps 'winner-mode-map
       "wr" 'winner-redo
       "wu" 'winner-undo))
@@ -491,7 +503,7 @@ Tell magit to automatically put us in vi-insert-mode when committing a change.
     :config
     (add-hook 'with-editor-mode-hook #'evil-insert-state)
     :general
-    (bat-leader
+    (bat/leader
       "g" 'magit-status))
 #+END_SRC
 ** Searching/sorting enhancements & project management
@@ -520,27 +532,22 @@ purpose.
   (use-package flx-ido :config (flx-ido-mode +1))
   (use-package ido-sort-mtime)
 
-  (defun recentf-ido-find-file ()
-    "Find a recent file using Ido."
+  (defun ido-choose-from-recentf ()
+    "Use ido to select a recently visited file from the `recentf-list'"
     (interactive)
-    (let* ((file-assoc-list
-            (mapcar (lambda (x)
-                      (cons (file-name-nondirectory x)
-                            x))
-                    recentf-list))
-           (filename-list
-            (remove-duplicates (mapcar #'car file-assoc-list)
-                               :test #'string=))
-           (filename (ido-completing-read "Choose recent file: "
-                                          filename-list
-                                          nil
-                                          t)))
-      (when filename
-        (find-file (cdr (assoc filename
-                               file-assoc-list))))))
+    (find-file (ido-completing-read "Open file: " recentf-list nil t)))
 
-  (bat-leader
-    "fr" 'recentf-ido-find-file)
+  (bat/leader
+    "fr" 'ido-choose-from-recentf)
+#+END_SRC
+*** Projectile
+Projectile is a project interaction library for Emacs.
+#+BEGIN_SRC emacs-lisp
+  (use-package projectile
+    :config
+    (projectile-mode 1)
+    (bat/leader
+      "p" '(projectile-command-map :wk "Projectile")))
 #+END_SRC
 ** Programming language support and utilities
 *** Company for auto-completion
@@ -615,7 +622,7 @@ Markdown mode and Web mode, the latter covers our usages of HTML/CSS/JS/JSX/TS/T
           clojure-thread-all-but-last t
           clojure-toplevel-inside-comment-form t
           clojure-align-binding-forms 'always)
-    (bat-leader
+    (bat/local-leader
       :keymaps 'clojure-mode-map
       "me" '(:ignore t :which-key "eval")
       "mef" 'cider-eval-last-sexp
@@ -730,6 +737,11 @@ h3...) a more visually pleasing look.
     (add-hook 'org-tree-slide-play-hook #'+org-present-hide-blocks-h)
     (add-hook 'org-tree-slide-stop-hook #'+org-present-hide-blocks-h))
 #+END_SRC
+*** Modern
+#+BEGIN_SRC emacs-lisp
+  (use-package org-modern
+    :hook (org-mode . global-org-modern-mode))
+#+END_SRC
 ** Miscellaneous
 *** Diminish minor modes
 The diminish package is used to hide unimportant minor modes in the
@@ -790,7 +802,7 @@ Number of facilites for manipulate parenthical expressions.
     :config
     (require 'smartparens-config)
     (add-hook 'lisp-mode-hook #'smartparens-strict-mode)
-    (bat-leader
+    (bat/leader
       "k" '(:ignore t :which-key "Smartparens")
       "ks" 'sp-forward-slurp-sexp
       "kS" 'sp-backward-slurp-sexp
